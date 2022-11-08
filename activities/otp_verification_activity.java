@@ -52,7 +52,7 @@ String enteredOTP_Btn;
         phone_no_textView.setText(phone_no_textView.getText().toString() +" ****"+ phone_no.charAt(phone_no.length()-3)+ phone_no.charAt(phone_no.length()-2)+ phone_no.charAt(phone_no.length()-1));
         // entered otp by user
         mAuth = FirebaseAuth.getInstance();
-        FirebaseAuth.getInstance().getFirebaseAuthSettings().setAppVerificationDisabledForTesting(true);
+      
 
 
         //reset otp text view
