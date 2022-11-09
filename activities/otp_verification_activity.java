@@ -9,6 +9,7 @@ import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
+import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -54,11 +55,11 @@ String enteredOTP_Btn;
         mAuth = FirebaseAuth.getInstance();
       
 
-
         //reset otp text view
 resend_otp_textView.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
+                isLoading(true);
                 PhoneAuthOptions options =
                         PhoneAuthOptions.newBuilder(mAuth)
                                 .setPhoneNumber(phone_no)       // Phone number to verify
@@ -71,8 +72,10 @@ resend_otp_textView.setOnClickListener(new View.OnClickListener() {
         });
 
         verifyOTPBtn.setOnClickListener(new View.OnClickListener() {
+
             @Override
             public void onClick(View v) {
+                isLoading(true);
             if(pinView.getText().toString().isEmpty()){
                 Toast.makeText(otp_verification_activity.this, "Enter Valid OTP", Toast.LENGTH_SHORT).show();
                 return;
@@ -87,6 +90,7 @@ resend_otp_textView.setOnClickListener(new View.OnClickListener() {
 
     }
     private void sendVerificationCode(String phone) {
+        isLoading(true);
         PhoneAuthOptions options = PhoneAuthOptions.newBuilder(mAuth)
                 .setPhoneNumber(phone)       // Phone number to verify
                 .setTimeout(60L, TimeUnit.SECONDS) // Timeout and unit
@@ -105,12 +109,14 @@ resend_otp_textView.setOnClickListener(new View.OnClickListener() {
               //  otpCode.setText(code);
                 verifyCode(code);
                 pinView.setText(code);
+                isLoading(false);
             }
         }
 
         @Override
         public void onVerificationFailed(@NonNull FirebaseException e) {
             Toast.makeText(otp_verification_activity.this, e.getMessage(), Toast.LENGTH_LONG).show();
+            onBackPressed();
         }
 
         @Override
@@ -132,6 +138,7 @@ resend_otp_textView.setOnClickListener(new View.OnClickListener() {
                     public void onComplete(@NonNull Task<AuthResult> task) {
                         if (task.isSuccessful()) {
                             //create a builder
+                            isLoading(false);
                             Dialog builder = new Dialog(otp_verification_activity.this);
                             builder.setContentView(R.layout.signup_success_dialog);
                             builder.show();
@@ -139,6 +146,7 @@ resend_otp_textView.setOnClickListener(new View.OnClickListener() {
                             new android.os.Handler().postDelayed(
                                     new Runnable() {
                                         public void run() {
+
                                             Intent intent = new Intent(otp_verification_activity.this, firstTime_InputData_activity.class);
                                             intent.putExtra("phone", getIntent().getStringExtra("phone"));
                                             intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
@@ -160,5 +168,21 @@ resend_otp_textView.setOnClickListener(new View.OnClickListener() {
                         Toast.makeText(otp_verification_activity.this, e.getMessage(), Toast.LENGTH_LONG).show();
                     }
                 });
+    }
+    public void isLoading(Boolean isLoading){
+        ProgressBar progressBar = findViewById(R.id.otpWaitingProgressBar);
+        if(isLoading){
+
+            verifyOTPBtn.setVisibility(View.INVISIBLE);
+            progressBar.setVisibility(View.VISIBLE);
+        }else{
+            verifyOTPBtn.setVisibility(View.VISIBLE);
+            progressBar.setVisibility(View.INVISIBLE);
+        }
+    }
+
+    @Override
+    public void onBackPressed() {
+        super.onBackPressed();
     }
 }
