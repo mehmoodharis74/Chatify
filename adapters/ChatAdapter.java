@@ -32,7 +32,7 @@ import java.util.List;
 
 public class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder>{
     private final Context context;
-    private final List<ChatModel> arrayChats;
+    public final List<ChatModel> arrayChats;
     private Bitmap receivedProfileImage;
     private final String senderId;
 
@@ -78,7 +78,9 @@ public class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder>{
             ((receiveMessageViewHolder) holder).setData(arrayChats.get(position), receivedProfileImage);
         }
     }
-
+public List<ChatModel> getArrayChats() {
+    return arrayChats;
+}
     @Override
     public int getItemCount() {
         return arrayChats.size();
@@ -97,63 +99,74 @@ public class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder>{
          //   ImageView profileImage = itemView.findViewById(R.id.receiveMessageImage);
             TextView message = itemView.findViewById(R.id.textMessage);
             TextView time = itemView.findViewById(R.id.textTime);
+            ImageView imageMessage = itemView.findViewById(R.id.messageImageView);
             ConstraintLayout singleMessageLayout = itemView.findViewById(R.id.singleMessageLayout);
          //   profileImage.setImageBitmap(recievedProfileImage);
             message.setText(chatModel.message);
             time.setText(chatModel.messageTime);
+            if(chatModel.imageMessage!=null){
+                imageMessage.setVisibility(View.VISIBLE);
+                byte[] decodedString = Base64.decode(chatModel.imageMessage, Base64.DEFAULT);
+                Bitmap decodedByte = BitmapFactory.decodeByteArray(decodedString, 0, decodedString.length);
+                imageMessage.setImageBitmap(decodedByte);
+            }
+            else
+                imageMessage.setVisibility(View.GONE);
+            if(message.getText().toString().equals("")){
+                message.setVisibility(View.GONE);
+            }
+            else
+                message.setVisibility(View.VISIBLE);
 
             //set long click listener on singleChatLayout
             singleMessageLayout.setOnLongClickListener(new View.OnLongClickListener() {
                 @Override
                 public boolean onLongClick(View v) {
 
-                    //set background color of singleChatLayout to red
-//                    if(singleMessageLayout.getBackground().equals(itemView.getResources().getDrawable(R.drawable.icon_background)))
-//                        singleMessageLayout.setBackground(null);
-//                    else
-              //          singleMessageLayout.setBackground(itemView.getResources().getDrawable(R.drawable.selected_chat_background));
-                        FirebaseFirestore database;
+                       FirebaseFirestore database;
                         database = FirebaseFirestore.getInstance();
-                        database.collection(Constants.KEY_CHAT_ROOMS)
-                                .whereEqualTo(Constants.KEY_CHAT_ROOM_MESSAGE, chatModel.message)
-                                .get()
-                                .addOnCompleteListener(task -> {
-                                    if(task.isSuccessful()){
-                                      //  for (int i = 0; i < task.getResult().size(); i++) {
-                                        if(task.getResult().size()>0){
-                                            //create alert dialog
-                                            AlertDialog.Builder builder = new AlertDialog.Builder(itemView.getContext());
-                                            builder.setTitle("Delete Message");
-                                            builder.setMessage("Are you sure you want to delete this message?");
-                                            builder.setPositiveButton("Yes", (dialog, which) -> {
-                                                //    delete message from database
-                                                database.collection(Constants.KEY_CHAT_ROOMS)
-                                                        .document(task.getResult().getDocuments().get(0).getId())
-                                                        .delete()
-                                                        .addOnSuccessListener(new OnSuccessListener<Void>() {
-                                                            @Override
-                                                            public void onSuccess(Void aVoid) {
-                                                                dialog.dismiss();
+                        //delete message from database
 
-                                                            }
-                                                        })
-                                                        .addOnFailureListener(e -> Toast.makeText(itemView.getContext(), "Error: " + e.getMessage(), Toast.LENGTH_SHORT).show());
-                                            }).setNegativeButton("No", (dialog, which) -> {
-                                                dialog.dismiss();
+               AlertDialog.Builder builder = new AlertDialog.Builder(itemView.getContext());
+                builder.setTitle("Delete Message");
+                builder.setIcon(R.drawable.ic_baseline_delete_24);
+                builder.setMessage("Are you sure you want to delete this message?");
+                builder.setPositiveButton("Yes", (dialog, which) -> {
+                    database.collection(Constants.KEY_CHAT_ROOMS).
+                            whereEqualTo(Constants.KEY_CHAT_ROOM_MESSAGE, chatModel.message)
+                            .get()
+                            .addOnSuccessListener(queryDocumentSnapshots -> {
+                                if (!queryDocumentSnapshots.isEmpty()) {
+                                    for (int i = 0; i < queryDocumentSnapshots.size(); i++) {
+                                        database.collection(Constants.KEY_CHAT_ROOMS)
+                                                .document(queryDocumentSnapshots.getDocuments().get(i).getId())
+                                                .delete()
+                                                .addOnSuccessListener(new OnSuccessListener<Void>() {
+                                                    @Override
+                                                    public void onSuccess(Void aVoid) {
+                                                        //remove element from adapter and notify adapter
 
-                                            });
-
-                                            builder.show();
-                                        }
-                                        else{
-                                            Toast.makeText(itemView.getContext(), "No Message Found", Toast.LENGTH_SHORT).show();
-                                        }
+                                                        dialog.dismiss();
+                                                    }
+                                                })
+                                                .addOnFailureListener(new OnFailureListener() {
+                                                    @Override
+                                                    public void onFailure(@NonNull Exception e) {
+                                                        Toast.makeText(itemView.getContext(), "Error: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                                                    }
+                                                });
                                     }
-                                })
-                                .addOnFailureListener(e -> Toast.makeText(itemView.getContext(), e.getMessage(), Toast.LENGTH_SHORT).show());
+                                }
+                            });
+                });
+                builder.setNegativeButton("No", (dialog, which) -> {
+                    dialog.dismiss();
+                }).show();
+
+
                     return true;
                 }
-            });
+           });
         }
 
     }
@@ -166,9 +179,23 @@ public class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder>{
             ImageView profileImage = itemView.findViewById(R.id.receiveMessageImage);
             TextView message = itemView.findViewById(R.id.textMessage);
             TextView time = itemView.findViewById(R.id.textTime);
+            ImageView imageMessage = itemView.findViewById(R.id.messageImageView);
     //        profileImage.setImageBitmap(recievedProfileImage);
             message.setText(chatModel.message);
             time.setText(chatModel.messageTime);
+            if(chatModel.imageMessage!=null){
+                imageMessage.setVisibility(View.VISIBLE);
+                byte[] decodedString = Base64.decode(chatModel.imageMessage, Base64.DEFAULT);
+                Bitmap decodedByte = BitmapFactory.decodeByteArray(decodedString, 0, decodedString.length);
+                imageMessage.setImageBitmap(decodedByte);
+            }
+            else
+                imageMessage.setVisibility(View.GONE);
+            if(message.getText().toString().equals("")){
+                message.setVisibility(View.GONE);
+            }
+            else
+                message.setVisibility(View.VISIBLE);
             if(receivedProfileImage != null)
                 profileImage.setImageBitmap(receivedProfileImage);
         }
