@@ -2,6 +2,7 @@ package com.harismehmood.i200902_i200485.adapters;
 
 
 import android.annotation.SuppressLint;
+import android.app.AlertDialog;
 import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
@@ -17,6 +18,8 @@ import androidx.annotation.NonNull;
 import androidx.constraintlayout.widget.ConstraintLayout;
 import androidx.recyclerview.widget.RecyclerView;
 
+import com.google.firebase.firestore.DocumentSnapshot;
+import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.auth.User;
 import com.harismehmood.i200902_i200485.R;
 import com.harismehmood.i200902_i200485.User.ChatModel;
@@ -24,6 +27,7 @@ import com.harismehmood.i200902_i200485.User.UserModel;
 import com.harismehmood.i200902_i200485.listeners.MainConversionListener;
 import com.harismehmood.i200902_i200485.listeners.UserListener;
 import com.harismehmood.i200902_i200485.sharedPreferences.PreferencesManager;
+import com.harismehmood.i200902_i200485.utilities.Constants;
 
 import java.util.List;
 
@@ -70,6 +74,36 @@ public class MainChatRecyclerAdapter extends RecyclerView.Adapter<MainChatRecycl
               conversionListener.onConversionClicked(user);
        });
 
+       holder.singleChatRow.setOnLongClickListener(v -> {
+          //deleter conversation from firebase and recycler adapter
+           FirebaseFirestore db = FirebaseFirestore.getInstance();
+
+           AlertDialog.Builder  builder = new AlertDialog.Builder(context);
+              builder.setTitle("Delete Conversation");
+              builder.setIcon(R.drawable.ic_baseline_delete_24);
+                builder.setMessage("Are you sure you want to delete this conversation?");
+                builder.setPositiveButton("Yes", (dialog, which) -> {
+                    db.collection("conversations")
+                    .whereEqualTo(Constants.KEY_SENDER_ID, arrayContacts.get(position).senderId)
+                    .whereEqualTo(Constants.KEY_RECEIVER_ID, arrayContacts.get(position).receiverId)
+                    .get()
+                    .addOnSuccessListener(queryDocumentSnapshots -> {
+                        for(DocumentSnapshot snapshot : queryDocumentSnapshots.getDocuments()){
+                            snapshot.getReference().delete();
+                        }
+                        arrayContacts.remove(position);
+                        notifyItemRemoved(position);
+                        notifyItemRangeChanged(position, arrayContacts.size());
+                    });
+                    //delete all the message in the conversation having same sender
+
+                });
+                builder.setNegativeButton("No", (dialog, which) -> {
+                    dialog.dismiss();
+                })
+                .show();
+           return true;
+       });
 
     }
 

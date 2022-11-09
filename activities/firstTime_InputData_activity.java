@@ -38,6 +38,9 @@ String encodedImage;
 DocumentSnapshot documentSnapshot;
 boolean imageSet;
 boolean userExists;
+String checkUserName;
+String checkUserId;
+
 PreferencesManager sharedPreferences;
 
 public String setEncodedImage(Bitmap bitmap) {
@@ -54,7 +57,7 @@ public String setEncodedImage(Bitmap bitmap) {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_first_time_input_data);
-        Intent intent1 = getIntent();
+
         //fetching already user data for display
         signIn(); //sign in to check if user already exits or not in database if it is then fetch its name and pic and display it
 
@@ -68,25 +71,7 @@ public String setEncodedImage(Bitmap bitmap) {
        // imageView.setImageURI(Uri.parse("android.resource://com.harismehmood.i200902_i200485/drawable/ic_baseline_insert_photo_24"));
 
         FirebaseUser user = FirebaseAuth.getInstance().getCurrentUser();
-//        if (user != null) {
-//            // Name, email address, and profile photo Url
-//            if(user.getDisplayName() != null){
-//                inputUserName.setText(user.getDisplayName());
-//            }
-//            if(user.getPhotoUrl() != null){
-//                imageView.setImageURI(user.getPhotoUrl());
-//            }
-//
-//
-//
-//            // Check if user's email is verified
-//            boolean emailVerified = user.isEmailVerified();
-//
-//            // The user's ID, unique to the Firebase project. Do NOT use this value to
-//            // authenticate with your backend server, if you have one. Use
-//            // FirebaseUser.getIdToken() instead.
-//            String uid = user.getUid();
- //       }
+
 
 
 
@@ -155,6 +140,9 @@ public String setEncodedImage(Bitmap bitmap) {
                 if(task.isSuccessful()&&task.getResult().size() > 0&&task.getResult()!=null) {
                     //user already exists
                     documentSnapshot = task.getResult().getDocuments().get(0);
+                    //matching previous text
+                    checkUserId = documentSnapshot.getString(Constants.USER_ID);
+                    checkUserName = documentSnapshot.getString(Constants.USER_NAME);
                     inputUserName.setText(documentSnapshot.getString(Constants.USER_NAME));
                     if(documentSnapshot.getString(Constants.USER_IMG) != null){
                         encodedImage = documentSnapshot.getString(Constants.USER_IMG);
@@ -170,84 +158,115 @@ public String setEncodedImage(Bitmap bitmap) {
                         imageSet = false;
                         userExists = false;
                     }
-//                    byte[] bytes = Base64.decode(documentSnapshot.getString(Constants.USER_IMG), Base64.DEFAULT);
-//                    Bitmap bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.length);
-//                    imageView.setImageBitmap(bitmap);
-//                    addPhotoTextView.setVisibility(View.GONE);
-//                    imageSet = true;
-                  //  Toast.makeText(firstTime_InputData_activity.this, "User Already Exists", Toast.LENGTH_SHORT).show();
                 }
                 else{
                     //user does not exists
                     userExists = false;
                     return;
-                  //  Toast.makeText(firstTime_InputData_activity.this, "User Does Not Exists", Toast.LENGTH_SHORT).show();
                 }
-                //    Toast.makeText(firstTime_InputData_activity.this, "Unable to fetch data", Toast.LENGTH_SHORT).show();
 
             });
 
     }
-    public void addDataToFirebase(){
-    isLoading(true);
-    Intent intent = getIntent();
+    public void updateConversationData(String userId){
+        FirebaseFirestore db = FirebaseFirestore.getInstance();
+        db.collection(Constants.USERS_KEY_COLLECTIONS)
+                .whereEqualTo(Constants.KEY_SENDER_ID, userId)
+                .get()
+                .addOnCompleteListener(task -> {
+                    if (task.isSuccessful() && task.getResult().size() > 0 && task.getResult() != null) {
+                        //user already exists
+                        for (DocumentSnapshot documentSnapshot : task.getResult().getDocuments()) {
+                            db.collection(Constants.USERS_KEY_COLLECTIONS)
+                                    .document(documentSnapshot.getId())
+                                    .update(Constants.KEY_SENDER_NAME, inputUserName.getText().toString().trim(),
+                                            Constants.KEY_SENDER_IMAGE, encodedImage);
+                        }
+                    }
+
+                });
+        db.collection(Constants.USERS_KEY_COLLECTIONS)
+                .whereEqualTo(Constants.KEY_RECEIVER_ID, userId)
+                .get()
+                .addOnCompleteListener(task -> {
+                    if (task.isSuccessful() && task.getResult().size() > 0 && task.getResult() != null) {
+                        //user already exists
+                        for (DocumentSnapshot documentSnapshot : task.getResult().getDocuments()) {
+                            db.collection(Constants.USERS_KEY_COLLECTIONS)
+                                    .document(documentSnapshot.getId())
+                                    .update(Constants.KEY_RECEIVER_NAME, inputUserName.getText().toString().trim(),
+                                            Constants.KEY_SENDER_IMAGE, encodedImage);
+                        }
+                    }
+
+                });
+    }
+    public void addDataToFirebase() {
+        isLoading(true);
+        Intent intent = getIntent();
         //add data to firebase
         FirebaseFirestore db = FirebaseFirestore.getInstance();
-        HashMap<String,Object> user = new HashMap<>();
-        user.put(Constants.USER_NAME,inputUserName.getText().toString());
-        user.put(Constants.USER_IMG,encodedImage);
+        HashMap<String, Object> user = new HashMap<>();
+        user.put(Constants.USER_NAME, inputUserName.getText().toString());
+        user.put(Constants.USER_IMG, encodedImage);
 
         //this condition is for if user already exists then update its data
-        if(userExists){
+        if (userExists) {
             //user already exists
-            db.collection(Constants.USERS_KEY_COLLECTIONS)
-                    .document(documentSnapshot.getId())
-                    .update(user)
-                    .addOnCompleteListener(documentReference -> {
+            if (!checkUserName.equals(inputUserName.getText().toString().trim())) {
+                //user name is changed
+                updateConversationData(checkUserId);
+
+            }
+                db.collection(Constants.USERS_KEY_COLLECTIONS)
+                        .document(documentSnapshot.getId())
+                        .update(user)
+                        .addOnCompleteListener(documentReference -> {
                             //data added successfully
                             isLoading(false);
-                            sharedPreferences.putBoolean(Constants.KEY_IS_SIGNED_IN,true);
-                            sharedPreferences.putString(Constants.USER_ID,documentSnapshot.getId());
-                            sharedPreferences.putString(Constants.USER_NAME,inputUserName.getText().toString());
-                            sharedPreferences.putString(Constants.USER_IMG,encodedImage);
-                            sharedPreferences.putString(Constants.USER_PHONE,intent.getStringExtra("phone"));
-                         //   Toast.makeText(firstTime_InputData_activity.this, "Data Updated Successfully", Toast.LENGTH_SHORT).show();
+                            sharedPreferences.putBoolean(Constants.KEY_IS_SIGNED_IN, true);
+                            sharedPreferences.putString(Constants.USER_ID, documentSnapshot.getId());
+                            sharedPreferences.putString(Constants.USER_NAME, inputUserName.getText().toString());
+                            sharedPreferences.putString(Constants.USER_IMG, encodedImage);
+                            sharedPreferences.putString(Constants.USER_PHONE, intent.getStringExtra("phone"));
+                            //   Toast.makeText(firstTime_InputData_activity.this, "Data Updated Successfully", Toast.LENGTH_SHORT).show();
                             //open main activities
                             Intent intent1 = new Intent(firstTime_InputData_activity.this, MainActivity.class);
                             startActivity(intent1);
-                    })
-                    .addOnFailureListener(e -> {
-                        //data not added
-                        isLoading(false);
-                        Toast.makeText(firstTime_InputData_activity.this, "Unable to Update data", Toast.LENGTH_SHORT).show();
-                    });
-        }
-        //this condition of if user does not exits then add it into database
-        else {
-            //user does not exists
-            user.put(Constants.USER_PHONE,intent.getStringExtra("phone"));
-            db.collection(Constants.USERS_KEY_COLLECTIONS)
-                    .add(user)
-                    .addOnSuccessListener(documentReference -> {
-                        isLoading(false);
-                        sharedPreferences.putBoolean(Constants.KEY_IS_SIGNED_IN,true);
-                        sharedPreferences.putString(Constants.USER_ID,documentReference.getId());
-                        sharedPreferences.putString(Constants.USER_NAME,inputUserName.getText().toString());
-                        sharedPreferences.putString(Constants.USER_IMG,encodedImage);
-                        sharedPreferences.putString(Constants.USER_PHONE,intent.getStringExtra("phone"));
-                        Intent intent1 = new Intent(firstTime_InputData_activity.this,MainActivity.class);
-                        intent1.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK | Intent.FLAG_ACTIVITY_NEW_TASK);
-                        startActivity(intent1);
-                       // Toast.makeText(firstTime_InputData_activity.this, "Data Added", Toast.LENGTH_SHORT).show();
-                    })
-                    .addOnFailureListener(e -> {
-                    isLoading(false);
-                    Toast.makeText(firstTime_InputData_activity.this, "Unable to add data", Toast.LENGTH_SHORT).show();
-                    });
-        }
+                        })
+                        .addOnFailureListener(e -> {
+                            //data not added
+                            isLoading(false);
+                            Toast.makeText(firstTime_InputData_activity.this, "Unable to Update data", Toast.LENGTH_SHORT).show();
+                        });
+            }
+            //this condition of if user does not exits then add it into database
+            else {
+                //user does not exists
+                user.put(Constants.USER_PHONE, intent.getStringExtra("phone"));
+                db.collection(Constants.USERS_KEY_COLLECTIONS)
+                        .add(user)
+                        .addOnSuccessListener(documentReference -> {
+                            isLoading(false);
+                            sharedPreferences.putBoolean(Constants.KEY_IS_SIGNED_IN, true);
+                            sharedPreferences.putString(Constants.USER_ID, documentReference.getId());
+                            sharedPreferences.putString(Constants.USER_NAME, inputUserName.getText().toString());
+                            sharedPreferences.putString(Constants.USER_IMG, encodedImage);
+                            sharedPreferences.putString(Constants.USER_PHONE, intent.getStringExtra("phone"));
+                            Intent intent1 = new Intent(firstTime_InputData_activity.this, MainActivity.class);
+                            intent1.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK | Intent.FLAG_ACTIVITY_NEW_TASK);
+                            startActivity(intent1);
+                            finish();
+                            // Toast.makeText(firstTime_InputData_activity.this, "Data Added", Toast.LENGTH_SHORT).show();
+                        })
+                        .addOnFailureListener(e -> {
+                            isLoading(false);
+                            Toast.makeText(firstTime_InputData_activity.this, "Unable to add data", Toast.LENGTH_SHORT).show();
+                        });
+            }
 
 
-    }
+        }
 
     public void isLoading(Boolean isLoading){
         if(isLoading){

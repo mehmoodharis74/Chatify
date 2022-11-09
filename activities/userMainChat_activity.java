@@ -1,12 +1,17 @@
 package com.harismehmood.i200902_i200485.activities;
 
 
+import androidx.annotation.Nullable;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
+
+import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.net.Uri;
 import android.os.Bundle;
 import android.util.Base64;
+import android.view.View;
 import android.widget.EditText;
 import android.widget.ImageButton;
 import android.widget.ImageView;
@@ -30,6 +35,10 @@ import com.harismehmood.i200902_i200485.utilities.Constants;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
+
+import java.io.ByteArrayOutputStream;
+import java.io.FileNotFoundException;
+import java.io.InputStream;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -50,7 +59,8 @@ FirebaseFirestore database;
 PreferencesManager preferences;
 ChatAdapter chatAdapter;
 Bitmap receiveUserImage;
-ImageButton sendMessageButton;
+ImageButton sendMessageButton ,addImageButton;
+String encodedImage = null;
 RecyclerView chatRecyclerView;
 private String conversationId = null;
 private Boolean isReceiverAvailable = false;
@@ -61,6 +71,7 @@ private Boolean isReceiverAvailable = false;
         backArrowButton = findViewById(R.id.userMainChatActivityBackArrowBtn);
         preferences = new PreferencesManager(this);
         backArrowButton.setOnClickListener(v -> onBackPressed());
+        addImageButton = findViewById(R.id.userMainChatAddImageBtn);
         loadReceiverDetails();
         init();
         listenMessages();
@@ -68,6 +79,17 @@ private Boolean isReceiverAvailable = false;
         //send button click listener
         sendMessageButton = findViewById(R.id.userMainChatActivitySendMessageButton);
         sendMessageButton.setOnClickListener(v -> sendMessage());
+
+        //add image button click listener
+        addImageButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                Intent intent = new Intent();
+                intent.setType("image/*");
+                intent.setAction(Intent.ACTION_GET_CONTENT);
+                startActivityForResult(Intent.createChooser(intent, "Select Picture"), 1);
+            }
+        });
     }
     private void init(){
         chatMessageList = new ArrayList<>();
@@ -83,15 +105,34 @@ private Boolean isReceiverAvailable = false;
     }
     private  void sendMessage(){
         EditText messageEditText = findViewById(R.id.userMainChatActivityTypeMessageInputText);
-
+      //  ImageView messageImage = findViewById(R.id.messageImageView);
         HashMap<String, Object> message = new HashMap<>();
         message.put(Constants.KEY_SENDER_ID, preferences.getString(Constants.USER_ID));
         message.put(Constants.KEY_RECEIVER_ID, receiverUser.userId);
         message.put(Constants.KEY_CHAT_ROOM_MESSAGE, messageEditText.getText().toString());
+        if(encodedImage != null){
+            message.put(Constants.KEY_CHAT_ROOM_MESSAGE_IMAGE, encodedImage);
+        }
+        else{
+            message.put(Constants.KEY_CHAT_ROOM_MESSAGE_IMAGE, null);
+        }
         message.put(Constants.KEY_TIMESTAMP, new Date());
-        database.collection(Constants.KEY_CHAT_ROOMS).add(message);
+
+        database.collection(Constants.KEY_CHAT_ROOMS).add(message).addOnCompleteListener(task -> {
+            if (task.isSuccessful()) {
+
+            } else {
+                Toast.makeText(this, "Error sending message", Toast.LENGTH_SHORT).show();
+            }
+        });
         if(conversationId != null){
-            updateConversation(messageEditText.getText().toString().trim());
+            if(encodedImage != null){
+                //update conversation and send string named sentImageMessage
+                updateConversation("Image");
+            }
+            else{
+                updateConversation(messageEditText.getText().toString().trim());
+            }
         }
         else{
             HashMap<String, Object> conversation = new HashMap<>();
@@ -101,7 +142,13 @@ private Boolean isReceiverAvailable = false;
             conversation.put(Constants.KEY_RECEIVER_ID, receiverUser.userId);
             conversation.put(Constants.KEY_RECEIVER_NAME, receiverUser.userName);
             conversation.put(Constants.KEY_RECEIVER_IMAGE, receiverUser.userImage);
-            conversation.put(Constants.KEY_LAST_MESSAGE, messageEditText.getText().toString().trim());
+            if(encodedImage != null){
+                conversation.put(Constants.KEY_LAST_MESSAGE, "Image");
+            }
+            else{
+                conversation.put(Constants.KEY_LAST_MESSAGE, messageEditText.getText().toString().trim());
+            }
+           // conversation.put(Constants.KEY_LAST_MESSAGE, messageEditText.getText().toString().trim());
             conversation.put(Constants.KEY_TIMESTAMP, new Date());
             addConversation(conversation);
         }
@@ -113,7 +160,13 @@ private Boolean isReceiverAvailable = false;
                 data.put(Constants.USER_ID, preferences.getString(Constants.USER_ID));
                 data.put(Constants.USER_NAME, preferences.getString(Constants.USER_NAME));
                 data.put(Constants.KEY_FCM_TOKEN, preferences.getString(Constants.KEY_FCM_TOKEN));
-                data.put(Constants.KEY_CHAT_ROOM_MESSAGE, messageEditText.getText().toString().trim());
+                if(!messageEditText.getText().toString().trim().equals("")){
+                    data.put(Constants.KEY_CHAT_ROOM_MESSAGE, messageEditText.getText().toString().trim());
+                }
+                else if(encodedImage != null){
+                    data.put(Constants.KEY_CHAT_ROOM_MESSAGE, "Image");
+                }
+              //  data.put(Constants.KEY_CHAT_ROOM_MESSAGE, messageEditText.getText().toString().trim());
 
                 JSONObject body = new JSONObject();
                 body.put(Constants.KEY_REMOTE_MSG_DATA, data);
@@ -213,11 +266,13 @@ private Boolean isReceiverAvailable = false;
             for (DocumentChange documentChange : value.getDocumentChanges()) {
                 if (documentChange.getType() == DocumentChange.Type.ADDED) {
                     ChatModel chatModel = new ChatModel();
+
                     chatModel.senderId = documentChange.getDocument().getString(Constants.KEY_SENDER_ID);
                     chatModel.receiverId = documentChange.getDocument().getString(Constants.KEY_RECEIVER_ID);
                     chatModel.message = documentChange.getDocument().getString(Constants.KEY_CHAT_ROOM_MESSAGE);
                     chatModel.messageTime = getReadableDate(documentChange.getDocument().getDate(Constants.KEY_TIMESTAMP));
                     chatModel.timestamp = documentChange.getDocument().getDate(Constants.KEY_TIMESTAMP);
+                    chatModel.imageMessage = documentChange.getDocument().getString(Constants.KEY_CHAT_ROOM_MESSAGE_IMAGE);
                     chatMessageList.add(chatModel);
                 }
             }
@@ -252,21 +307,26 @@ private Boolean isReceiverAvailable = false;
 
     }
     private String getReadableDate(Date date){
-        return  new SimpleDateFormat("MMMM dd, yyyy - hh:mm a", Locale.getDefault()).format(date);
+        return  new SimpleDateFormat("MM/dd/yy - hh:mm a", Locale.getDefault()).format(date);
     }
     private void addConversation(HashMap<String , Object> conversation){
         database.collection(Constants.KEY_COLLECTION_CONVERSATIONS)
                 .add(conversation)
-                .addOnSuccessListener(documentReference -> conversationId = documentReference.getId());
+                .addOnSuccessListener(documentReference -> conversationId = documentReference.getId()
+
+                );
     }
     private void updateConversation(String message){
         DocumentReference documentReference = database.collection(Constants.KEY_COLLECTION_CONVERSATIONS).document(conversationId);
-        documentReference.update(Constants.KEY_LAST_MESSAGE, message, Constants.KEY_TIMESTAMP, new Date(), Constants.KEY_RECEIVER_NAME, receiverUser.userName);
+        documentReference.update(Constants.KEY_LAST_MESSAGE, message, Constants.KEY_TIMESTAMP, new Date());
     }
     private void checkForConversation(){
         if(chatMessageList.size()!= 0){
             checkOnConversationRemotely(preferences.getString(Constants.USER_ID), receiverUser.userId);
             checkOnConversationRemotely(receiverUser.userId, preferences.getString(Constants.USER_ID));
+        }
+        else{
+            //delete that
         }
     }
 
@@ -289,7 +349,36 @@ private Boolean isReceiverAvailable = false;
             conversationId = documentSnapshot.getId();
         }
     };
+    public String setEncodedImage(Bitmap bitmap) {
+        int previewWidth = 150;
+        int previewHeight = bitmap.getHeight() * previewWidth / bitmap.getWidth();
+        Bitmap previewBitmap = Bitmap.createScaledBitmap(bitmap, previewWidth, previewHeight, false);
+        ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
+        previewBitmap.compress(Bitmap.CompressFormat.JPEG, 50, byteArrayOutputStream);
+        byte[] bytes = byteArrayOutputStream.toByteArray();
+        return Base64.encodeToString(bytes, android.util.Base64.DEFAULT);
+    }
 
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if(requestCode == 1 && resultCode == RESULT_OK && data != null && data.getData() != null){
+            // imageView.setImageURI(data.getData());
+            Uri uri = data.getData();
+            try {
+                InputStream inputStream = getContentResolver().openInputStream(uri);
+                Bitmap bitmap = BitmapFactory.decodeStream(inputStream);
+                //imageView.setImageBitmap(bitmap);
+                encodedImage = setEncodedImage(bitmap);
+
+            } catch (FileNotFoundException e) {
+                e.printStackTrace();
+                encodedImage = null;
+            }
+        }
+        else
+            encodedImage = null;
+    }
     @Override
     protected void onPause() {
         super.onPause();
