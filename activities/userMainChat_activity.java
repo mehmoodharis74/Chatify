@@ -1,6 +1,9 @@
 package com.harismehmood.i200902_i200485.activities;
 
 
+import androidx.activity.result.ActivityResult;
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.Nullable;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
@@ -17,6 +20,9 @@ import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
+
+
+import com.google.android.gms.cast.framework.media.ImagePicker;
 import com.google.android.gms.tasks.OnCompleteListener;
 import com.google.firebase.firestore.DocumentChange;
 import com.google.firebase.firestore.DocumentReference;
@@ -32,6 +38,8 @@ import com.harismehmood.i200902_i200485.network.ApiClient;
 import com.harismehmood.i200902_i200485.network.ApiService;
 import com.harismehmood.i200902_i200485.sharedPreferences.PreferencesManager;
 import com.harismehmood.i200902_i200485.utilities.Constants;
+
+import org.jetbrains.annotations.NotNull;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -47,6 +55,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+
+import kotlin.Unit;
+import kotlin.jvm.functions.Function1;
+import kotlin.jvm.internal.Intrinsics;
 import retrofit2.Call;
 import retrofit2.Callback;
 import retrofit2.Response;
@@ -91,6 +103,9 @@ private Boolean isReceiverAvailable = false;
             }
         });
     }
+
+
+
     private void init(){
         chatMessageList = new ArrayList<>();
         //setting chatAdapter
@@ -105,7 +120,8 @@ private Boolean isReceiverAvailable = false;
     }
     private  void sendMessage(){
         EditText messageEditText = findViewById(R.id.userMainChatActivityTypeMessageInputText);
-      //  ImageView messageImage = findViewById(R.id.messageImageView);
+      if(messageEditText.getText().toString().trim().isEmpty())
+          return;
         HashMap<String, Object> message = new HashMap<>();
         message.put(Constants.KEY_SENDER_ID, preferences.getString(Constants.USER_ID));
         message.put(Constants.KEY_RECEIVER_ID, receiverUser.userId);
@@ -166,7 +182,7 @@ private Boolean isReceiverAvailable = false;
                 else if(encodedImage != null){
                     data.put(Constants.KEY_CHAT_ROOM_MESSAGE, "Image");
                 }
-              //  data.put(Constants.KEY_CHAT_ROOM_MESSAGE, messageEditText.getText().toString().trim());
+
 
                 JSONObject body = new JSONObject();
                 body.put(Constants.KEY_REMOTE_MSG_DATA, data);
@@ -307,7 +323,7 @@ private Boolean isReceiverAvailable = false;
 
     }
     private String getReadableDate(Date date){
-        return  new SimpleDateFormat("MM/dd/yy - hh:mm a", Locale.getDefault()).format(date);
+            return  new SimpleDateFormat("MM/dd/yy - hh:mm a", Locale.getDefault()).format(date);
     }
     private void addConversation(HashMap<String , Object> conversation){
         database.collection(Constants.KEY_COLLECTION_CONVERSATIONS)
