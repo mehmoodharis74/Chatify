@@ -104,12 +104,14 @@ resend_otp_textView.setOnClickListener(new View.OnClickListener() {
 
         @Override
         public void onVerificationCompleted(@NonNull PhoneAuthCredential phoneAuthCredential) {
+
             String code = phoneAuthCredential.getSmsCode();
             if (code != null) {
               //  otpCode.setText(code);
                 verifyCode(code);
                 pinView.setText(code);
                 isLoading(false);
+
             }
         }
 
@@ -117,10 +119,12 @@ resend_otp_textView.setOnClickListener(new View.OnClickListener() {
         public void onVerificationFailed(@NonNull FirebaseException e) {
             Toast.makeText(otp_verification_activity.this, e.getMessage(), Toast.LENGTH_LONG).show();
             onBackPressed();
+            isLoading(false);
         }
 
         @Override
         public void onCodeSent(@NonNull String s, @NonNull PhoneAuthProvider.ForceResendingToken forceResendingToken) {
+            isLoading(false);
             super.onCodeSent(s, forceResendingToken);
             verificationId = s;
         }
@@ -129,6 +133,7 @@ resend_otp_textView.setOnClickListener(new View.OnClickListener() {
     private void verifyCode(String code) {
         PhoneAuthCredential credential = PhoneAuthProvider.getCredential(verificationId, code);
         signInWithCredential(credential);
+        isLoading(false);
     }
 
     private void signInWithCredential(PhoneAuthCredential credential) {
